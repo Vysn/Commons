@@ -70,7 +70,7 @@ namespace Vysn.Commons {
         /// </summary>
         /// <param name="eventArgs"></param>
         /// <returns></returns>
-        public async Task DispatchAsync(TEventArgs eventArgs) {
+        internal async Task InvokeAsync(TEventArgs eventArgs) {
             HashSet<Func<TEventArgs, Task>> invocations;
             lock (_lockObject) {
                 invocations = _invocations;
