@@ -1,5 +1,8 @@
 ﻿namespace Vysn.Commons.WebSocket.EventArgs {
-    public struct OpenEventArgs {
+    /// <summary>
+    /// 
+    /// </summary>
+    public readonly struct OpenEventArgs {
         
     }
 }
