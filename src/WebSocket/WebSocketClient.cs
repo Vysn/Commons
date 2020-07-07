@@ -15,22 +15,22 @@ namespace Vysn.Commons.WebSocket {
         /// <summary>
         /// 
         /// </summary>
-        public readonly AsyncEvent<OpenEventArgs> OnOpenAsync;
+        public AsyncEvent<OpenEventArgs> OnOpenAsync;
 
         /// <summary>
         /// 
         /// </summary>
-        public readonly AsyncEvent<MessageEventArgs> OnMessageAsync;
+        public AsyncEvent<MessageEventArgs> OnMessageAsync;
 
         /// <summary>
         /// 
         /// </summary>
-        public readonly AsyncEvent<ErrorEventArgs> OnErrorAsync;
+        public AsyncEvent<ErrorEventArgs> OnErrorAsync;
 
         /// <summary>
         /// 
         /// </summary>
-        public readonly AsyncEvent<CloseEventArgs> OnCloseAsync;
+        public AsyncEvent<CloseEventArgs> OnCloseAsync;
 
         /// <summary>
         /// 
@@ -49,7 +49,19 @@ namespace Vysn.Commons.WebSocket {
         /// <summary>
         /// 
         /// </summary>
-        public WebSocketClient(string hostname, int port, bool isSecure = false) {
+        /// <param name="websocketAddress"></param>
+        public WebSocketClient(Uri websocketAddress) :
+            this(websocketAddress.Host, websocketAddress.Port, websocketAddress.Scheme) { }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="hostname"></param>
+        /// <param name="port"></param>
+        /// <param name="scheme"></param>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
+        public WebSocketClient(string hostname, int port, string scheme) {
             if (string.IsNullOrWhiteSpace(hostname)) {
                 throw new ArgumentNullException(nameof(hostname),
                     "Hostname was not provided.");
@@ -59,7 +71,7 @@ namespace Vysn.Commons.WebSocket {
                 throw new ArgumentOutOfRangeException(nameof(port), "Invalid port provided.");
             }
 
-            Host = new Uri(isSecure ? $"wss://{hostname}:{port}" : $"ws://{hostname}:{port}");
+            Host = new Uri($"{scheme}://{hostname}:{port}");
             _webSocket = new ClientWebSocket();
             _messageQueue = new ConcurrentQueue<byte[]>();
 
