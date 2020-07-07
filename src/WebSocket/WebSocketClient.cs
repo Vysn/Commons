@@ -15,22 +15,22 @@ namespace Vysn.Commons.WebSocket {
         /// <summary>
         /// 
         /// </summary>
-        public AsyncEvent<OpenEventArgs> OnOpenAsync;
+        public readonly AsyncEvent<OpenEventArgs> OnOpenAsync;
 
         /// <summary>
         /// 
         /// </summary>
-        public AsyncEvent<MessageEventArgs> OnMessageAsync;
+        public readonly AsyncEvent<MessageEventArgs> OnMessageAsync;
 
         /// <summary>
         /// 
         /// </summary>
-        public AsyncEvent<ErrorEventArgs> OnErrorAsync;
+        public readonly AsyncEvent<ErrorEventArgs> OnErrorAsync;
 
         /// <summary>
         /// 
         /// </summary>
-        public AsyncEvent<CloseEventArgs> OnCloseAsync;
+        public readonly AsyncEvent<CloseEventArgs> OnCloseAsync;
 
         /// <summary>
         /// 
@@ -51,11 +51,12 @@ namespace Vysn.Commons.WebSocket {
         /// </summary>
         public WebSocketClient(string hostname, int port, bool isSecure = false) {
             if (string.IsNullOrWhiteSpace(hostname)) {
-                throw new ArgumentNullException(nameof(hostname), "");
+                throw new ArgumentNullException(nameof(hostname),
+                    "Hostname was not provided.");
             }
 
             if (port <= 0) {
-                throw new ArgumentOutOfRangeException(nameof(port), "");
+                throw new ArgumentOutOfRangeException(nameof(port), "Invalid port provided.");
             }
 
             Host = new Uri(isSecure ? $"wss://{hostname}:{port}" : $"ws://{hostname}:{port}");
@@ -74,7 +75,8 @@ namespace Vysn.Commons.WebSocket {
         /// <returns></returns>
         public async ValueTask ConnectAsync() {
             if (_webSocket.State == WebSocketState.Open) {
-                throw new InvalidOperationException();
+                throw new InvalidOperationException(
+                    $"WebSocket is not in open state. Current state: {_webSocket.State}");
             }
 
             await (_webSocket as ClientWebSocket).ConnectAsync(Host, _connectionTokenSource.Token)
@@ -83,7 +85,7 @@ namespace Vysn.Commons.WebSocket {
                     IsConnected = true;
 
                     _connectionTokenSource = new CancellationTokenSource();
-                    await Task.WhenAll(OnOpenAsync.DispatchAsync(new OpenEventArgs()), ReceiveAsync(), SendAsync());
+                    await Task.WhenAll(OnOpenAsync.InvokeAsync(new OpenEventArgs()), ReceiveAsync(), SendAsync());
                 });
         }
 
@@ -96,19 +98,20 @@ namespace Vysn.Commons.WebSocket {
         public async ValueTask DisconnectAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.NormalClosure,
                                                string closeReason = "Normal closure.") {
             if (_webSocket.State != WebSocketState.Open) {
-                throw new InvalidOperationException("");
+                throw new InvalidOperationException(
+                    $"WebSocket is not in open state. Current state: {_webSocket.State}");
             }
 
             try {
                 await _webSocket.CloseAsync(closeStatus, closeReason, _connectionTokenSource.Token);
             }
             catch (Exception exception) {
-                await OnErrorAsync.DispatchAsync(new ErrorEventArgs(exception));
+                await OnErrorAsync.InvokeAsync(new ErrorEventArgs(exception));
             }
             finally {
                 IsConnected = false;
-                await OnCloseAsync.DispatchAsync(new CloseEventArgs());
                 _connectionTokenSource.Cancel(false);
+                await OnCloseAsync.InvokeAsync(new CloseEventArgs());
             }
         }
 
@@ -125,11 +128,12 @@ namespace Vysn.Commons.WebSocket {
         public async ValueTask SendAsync<T>(T data, bool bypassQueue = false,
                                             JsonSerializerOptions serializerOptions = default) {
             if (data == null) {
-                throw new ArgumentNullException(nameof(data), "");
+                throw new ArgumentNullException(nameof(data), "Provided data was null.");
             }
 
             if (_webSocket.State != WebSocketState.Open) {
-                throw new InvalidOperationException("");
+                throw new InvalidOperationException(
+                    $"WebSocket is not in open state. Current state: {_webSocket.State}");
             }
 
             try {
@@ -143,22 +147,28 @@ namespace Vysn.Commons.WebSocket {
                 }
             }
             catch (Exception exception) {
-                await OnErrorAsync.DispatchAsync(new ErrorEventArgs(exception));
+                await OnErrorAsync.InvokeAsync(new ErrorEventArgs(exception));
             }
         }
 
         private async Task ReceiveAsync() {
             try {
-                WebSocketReceiveResult receiveResult;
                 var buffer = new byte[1024];
+                var finalBuffer = default(byte[]);
+                var offset = 0;
                 do {
-                    receiveResult = await _webSocket.ReceiveAsync(buffer, _connectionTokenSource.Token);
+                    var receiveResult = await _webSocket.ReceiveAsync(buffer, _connectionTokenSource.Token);
                     if (!receiveResult.EndOfMessage) {
+                        finalBuffer = new byte[2048];
+                        buffer.CopyTo(finalBuffer, offset);
+                        offset += receiveResult.Count;
+                        buffer = new byte[1024];
                         continue;
                     }
 
                     switch (receiveResult.MessageType) {
                         case WebSocketMessageType.Text:
+                            await OnMessageAsync.InvokeAsync(new MessageEventArgs(finalBuffer));
                             break;
 
                         case WebSocketMessageType.Close:
@@ -175,7 +185,7 @@ namespace Vysn.Commons.WebSocket {
                     return;
                 }
 
-                await OnErrorAsync.DispatchAsync(new ErrorEventArgs(exception));
+                await OnErrorAsync.InvokeAsync(new ErrorEventArgs(exception));
             }
         }
 
@@ -192,7 +202,7 @@ namespace Vysn.Commons.WebSocket {
                          !_connectionTokenSource.IsCancellationRequested);
             }
             catch (Exception exception) {
-                await OnErrorAsync.DispatchAsync(new ErrorEventArgs(exception));
+                await OnErrorAsync.InvokeAsync(new ErrorEventArgs(exception));
             }
         }
 
