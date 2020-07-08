@@ -21,7 +21,7 @@ jobs:
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: 5.0.100-preview.3
+        dotnet-version: SDK 5.0.100-preview.6
     
     - name: Build Project
       run: dotnet build /p:Version=$BUILD_VERSION --configuration Release -o Output
