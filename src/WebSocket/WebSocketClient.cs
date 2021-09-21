@@ -1,13 +1,12 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Vysn.Commons.WebSocket.EventArgs;
+using System.Net.WebSockets;
 
 namespace Vysn.Commons.WebSocket {
-    using System.Net.WebSockets;
-
     /// <summary>
     /// 
     /// </summary>
@@ -15,22 +14,22 @@ namespace Vysn.Commons.WebSocket {
         /// <summary>
         /// 
         /// </summary>
-        public AsyncEvent<OpenEventArgs> OnOpenAsync;
+        public event Func<Task> OnOpenAsync;
 
         /// <summary>
         /// 
         /// </summary>
-        public AsyncEvent<MessageEventArgs> OnMessageAsync;
+        public event Func<CloseEventArgs, Task> OnCloseAsync;
 
         /// <summary>
         /// 
         /// </summary>
-        public AsyncEvent<ErrorEventArgs> OnErrorAsync;
+        public event Func<ErrorEventArgs, Task> OnErrorAsync;
 
         /// <summary>
         /// 
         /// </summary>
-        public AsyncEvent<CloseEventArgs> OnCloseAsync;
+        public event Func<DataEventArgs, Task> OnDataAsync;
 
         /// <summary>
         /// 
@@ -42,7 +41,7 @@ namespace Vysn.Commons.WebSocket {
         /// </summary>
         public Uri Host { get; }
 
-        private readonly WebSocket _webSocket;
+        private readonly ClientWebSocket _webSocket;
         private readonly ConcurrentQueue<byte[]> _messageQueue;
         private CancellationTokenSource _connectionTokenSource;
 
@@ -74,11 +73,6 @@ namespace Vysn.Commons.WebSocket {
             Host = new Uri($"{scheme}://{hostname}:{port}");
             _webSocket = new ClientWebSocket();
             _messageQueue = new ConcurrentQueue<byte[]>();
-
-            OnOpenAsync = new AsyncEvent<OpenEventArgs>();
-            OnCloseAsync = new AsyncEvent<CloseEventArgs>();
-            OnErrorAsync = new AsyncEvent<ErrorEventArgs>();
-            OnMessageAsync = new AsyncEvent<MessageEventArgs>();
         }
 
         /// <summary>
@@ -91,13 +85,13 @@ namespace Vysn.Commons.WebSocket {
                     $"WebSocket is not in open state. Current state: {_webSocket.State}");
             }
 
-            await (_webSocket as ClientWebSocket).ConnectAsync(Host, _connectionTokenSource.Token)
+            await _webSocket.ConnectAsync(Host, _connectionTokenSource.Token)
                 .ContinueWith(async task => {
                     await task;
                     IsConnected = true;
 
                     _connectionTokenSource = new CancellationTokenSource();
-                    await Task.WhenAll(OnOpenAsync.InvokeAsync(new OpenEventArgs()), ReceiveAsync(), SendAsync());
+                    await Task.WhenAll(OnOpenAsync.Invoke(), ReceiveAsync(), SendAsync());
                 });
         }
 
@@ -118,12 +112,12 @@ namespace Vysn.Commons.WebSocket {
                 await _webSocket.CloseAsync(closeStatus, closeReason, _connectionTokenSource.Token);
             }
             catch (Exception exception) {
-                await OnErrorAsync.InvokeAsync(new ErrorEventArgs(exception));
+                await OnErrorAsync.Invoke(new ErrorEventArgs(exception));
             }
             finally {
                 IsConnected = false;
                 _connectionTokenSource.Cancel(false);
-                await OnCloseAsync.InvokeAsync(new CloseEventArgs());
+                await OnCloseAsync.Invoke(new CloseEventArgs());
             }
         }
 
@@ -159,7 +153,7 @@ namespace Vysn.Commons.WebSocket {
                 }
             }
             catch (Exception exception) {
-                await OnErrorAsync.InvokeAsync(new ErrorEventArgs(exception));
+                await OnErrorAsync.Invoke(new ErrorEventArgs(exception));
             }
         }
 
@@ -180,7 +174,7 @@ namespace Vysn.Commons.WebSocket {
 
                     switch (receiveResult.MessageType) {
                         case WebSocketMessageType.Text:
-                            await OnMessageAsync.InvokeAsync(new MessageEventArgs(finalBuffer));
+                            await OnDataAsync.Invoke(new DataEventArgs(finalBuffer));
                             break;
 
                         case WebSocketMessageType.Close:
@@ -191,13 +185,11 @@ namespace Vysn.Commons.WebSocket {
                          !_connectionTokenSource.IsCancellationRequested);
             }
             catch (Exception exception) {
-                if (exception is TaskCanceledException
-                    || exception is OperationCanceledException
-                    || exception is ObjectDisposedException) {
+                if (exception is TaskCanceledException or OperationCanceledException or ObjectDisposedException) {
                     return;
                 }
 
-                await OnErrorAsync.InvokeAsync(new ErrorEventArgs(exception));
+                await OnErrorAsync(new ErrorEventArgs(exception));
             }
         }
 
@@ -214,7 +206,7 @@ namespace Vysn.Commons.WebSocket {
                          !_connectionTokenSource.IsCancellationRequested);
             }
             catch (Exception exception) {
-                await OnErrorAsync.InvokeAsync(new ErrorEventArgs(exception));
+                await OnErrorAsync(new ErrorEventArgs(exception));
             }
         }
 
