@@ -17,11 +17,11 @@ namespace Vysn.Commons {
             switch (argument) {
                 case string str when string.IsNullOrWhiteSpace(str):
                     throw new ArgumentNullException(argumentName, "String cannot be null/empty/whitespace.");
-                case byte[] byteArray when byteArray.Length == 0:
+                case byte[] {Length: 0}:
                     throw new Exception("Array cannot be empty or have length of 0.");
-                case var _ when argument == null:
+                case null:
                     throw new ArgumentNullException(argumentName, "Argument cannot be null.");
-                case int num when num <= -1:
+                case <= -1:
                     throw new ArgumentOutOfRangeException(argumentName, "Value must be higher than or equal to 0.");
             }
         }

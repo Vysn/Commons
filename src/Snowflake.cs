@@ -1,4 +1,6 @@
-﻿namespace Vysn.Commons {
+﻿using System;
+
+namespace Vysn.Commons {
     /// <summary>
     /// 
     /// </summary>
@@ -104,7 +106,8 @@
         public override bool Equals(object obj) {
             return obj switch {
                 ulong val           => val == _value,
-                Snowflake snowflake => Equals(snowflake)
+                Snowflake snowflake => Equals(snowflake),
+                _                   => throw new ArgumentOutOfRangeException(nameof(obj), obj, null)
             };
         }
 
